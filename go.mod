@@ -1,9 +1,8 @@
-module github.com/lbhandari/mqe
+module github.com/loukikbhandari/mqr
 
 go 1.17
 
 require (
-	github.com/adjust/rmq/v4 v4.0.5
 	github.com/go-redis/redis/v8 v8.11.5
 	github.com/stretchr/testify v1.8.0
 )
