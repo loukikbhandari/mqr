@@ -16,7 +16,6 @@ const (
 	pollDuration  = 100 * time.Millisecond
 	numConsumers  = 5
 
-	//reportBatchSize = 10000
 	consumeDuration = time.Millisecond
 	shouldLog       = true
 )
@@ -43,7 +42,7 @@ func main() {
 
 	for i := 0; i < numConsumers; i++ {
 		name := fmt.Sprintf("Subscriber %d", i)
-		if _, err := queue.AddConsumer(name, NewConsumer(i, testStrArr[i])); err != nil {
+		if _, err := queue.AddSubscriber(name, NewSubscriber(i, testStrArr[i])); err != nil {
 			panic(err)
 		}
 	}
@@ -68,7 +67,7 @@ type Consumer struct {
 	testStr string
 }
 
-func NewConsumer(tag int, testStr string) *Consumer {
+func NewSubscriber(tag int, testStr string) *Consumer {
 	return &Consumer{
 		name:    fmt.Sprintf("Subscriber%d", tag),
 		count:   0,
@@ -103,11 +102,13 @@ func (consumer *Consumer) Consume(delivery mqr.Delivery) {
 
 	if jsonBody.City == consumer.testStr {
 
+		log.Printf("Acked message with body jsonBody = %v by subscriber %s ", msg.Body, consumer.name)
+
 		if err := delivery.Ack(); err != nil {
 			// handle ack error
 		}
 	} else {
-		log.Printf("Rejected message with body jsonBody = %v by subscriber %s ", jsonBody, consumer.name)
+		log.Printf("Rejected message with body jsonBody = %v by subscriber %s ", msg.Body, consumer.name)
 		if err := delivery.Reject(); err != nil {
 			// handle reject error
 		}

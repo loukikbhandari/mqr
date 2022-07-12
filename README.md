@@ -34,10 +34,7 @@ connection, err := mqr.OpenConnection("my service", "tcp", "localhost:6379", 1, 
 If the Redis instance can't be reached you will receive an error indicating this.
 
 Please also note the `errChan` parameter. There is some mqr logic running in
-the background which can run into Redis errors. If you pass an error channel to
-the `OpenConnection()` functions mqr will send those background errors to this
-channel so you can handle them asynchronously. For more details about this and
-handling suggestions see the section about handling background errors below.
+the background which can run into Redis errors. 
 
 ### Queues
 
@@ -76,9 +73,9 @@ if err != nil {
 err = taskQueue.PublishBytes(taskBytes)
 ```
 
-For a full example see [`example/producer`][producer.go].
+For a full example see [`example/publisher`][publisher.go].
 
-[producer.go]: example/producer/main.go
+[producer.go]: example/publisher/main.go
 
 ### Subscribers aka consumers 
 
@@ -89,22 +86,18 @@ queue as before, we need it to start consuming before we can add consumers.
 err := taskQueue.StartConsuming(10, time.Second)
 ```
 
-This sets the prefetch limit to 10 and the poll duration to one second. This
-means the queue will fetch up to 10 deliveries at a time before giving them to
-the consumers.
-
-Once this is set up, we can actually add consumers to the consuming queue.
+Once this is set up, we can actually add subscribers to the consuming queue.
 
 ```go
-taskConsumer := &TaskConsumer{}
-name, err := taskQueue.AddConsumer("task-Subscriber", taskConsumer)
+taskSubscriber := &TaskSubscriber{}
+name, err := taskQueue.AddSubscriber("task-Subscriber", taskSubscriber)
 ```
 
 To uniquely identify each consumer internally mqr creates a random name with
 the given prefix. For example in this case `name` might be
-`task-consumer-WB1zaq`. This name is only used in statistics. 
+`task-subscriber-WB1zaq`. This name is only used in statistics. 
 
-In our example above the injected `taskConsumer` (of type `*TaskConsumer`) must
+In our example above the injected `taskSubscriber` (of type `*TaskSubscriber`) must
 implement the `mqr.Consumer` interface. For example:
 
 ```go
@@ -130,21 +123,9 @@ First we unmarshal the JSON package found in the delivery payload. If this
 fails we reject the delivery. Otherwise we perform the task and ack the
 delivery.
 
-If you don't actually need a consumer struct you can use `AddConsumerFunc`
-instead and pass a consumer function which handles an `mqr.Delivery`:
 
-```go
-name, err := taskQueue.AddConsumerFunc(func(delivery mqr.Delivery) {
-    // handle delivery and call Ack() or Reject() on it
-})
-```
 
-Please note that `delivery.Ack()` and similar functions have a built-in retry
-mechanism which will block your consumers in some cases. This is because
-because failing to acknowledge a delivery is potentially dangerous. For details
-see the section about background errors below.
-
-For a full example see [`example/consumer`][consumer.go].
+For a full example see [`example/subscriber`][subscriber.go].
 
 #### Subscriber Lifecycle
 
@@ -154,98 +135,10 @@ passes it to the consumer's `Consume()` function. The next delivery will only
 be passed to the same consumer once the prior `Consume()` call returns. So each
 consumer will only be consuming a single delivery at any given time.
 
-Furthermore each `Consume()` call is expected to call either `delivery.Ack()`,
-`delivery.Reject()` or `delivery.Push()` (see below). If that's not the case
-these deliveries will remain unacked and the prefetch goroutine won't make
-progress after a while. So make sure you always call exactly one of those
-functions in your `Consume()` implementations.
 
-[consumer.go]: example/Subscriber/main.go
+[subscriber.go]: example/Subscriber/main.go
 
 
-
-### Publisher Tests
-
-Now let's say we want to test the function `publishTask()` that creates a task
-and publishes it to a queue from that connection.
-
-```go
-// call the function that should publish a task
-publishTask(testConn)
-
-// check that the task is published
-assert.Equal(t, "task payload", suite.testConn.GetDelivery("tasks", 0))
-```
-
-The `assert.Equal` part is from [testify][testify], but it will look similar
-for other testing frameworks. Given a `mqr.TestConnection`, we can check the
-deliveries that were published to its queues (since the last `Reset()` call)
-with `GetDelivery(queueName, index)`. In this case we want to extract the first
-(and possibly only) delivery that was published to queue `tasks` and just check
-the payload string.
-
-If the payload is JSON again, the unmarshalling and check might look like this:
-
-```go
-var task Task
-err := json.Unmarshal([]byte(suite.testConn.GetDelivery("tasks", 0)), &task)
-assert.NoError(t, err)
-assert.NotNil(t, task)
-assert.Equal(t, "value", task.Property)
-```
-
-If you expect a producer to create multiple deliveries you can use different
-indexes to access them all.
-
-```go
-assert.Equal(t, "task1", suite.testConn.GetDelivery("tasks", 0))
-assert.Equal(t, "task2", suite.testConn.GetDelivery("tasks", 1))
-```
-
-For convenience there's also a function `GetDeliveries` that returns all
-published deliveries to a queue as string array.
-
-```go
-assert.Equal(t, []string{"task1", "task2"}, suite.testConn.GetDeliveries("tasks"))
-```
-
-These examples assume that you inject the `mqr.Connection` into your testable
-functions. If you inject instances of `mqr.Queue` instead, you can use
-`mqr.TestQueue` instances in tests and access their `LastDeliveries` (since
-`Reset()`) directly.
-
-[testify]: https://github.com/stretchr/testify
-
-### Consumer Tests
-
-Testing consumers is a bit easier because consumers must implement the
-`mqr.Consumer` interface. In the tests just create an `mqr.TestDelivery` and
-pass it to your `Consume()` function. This example creates a test delivery from
-a string and then checks that the delivery was acked.
-
-```go
-consumer := &TaskConsumer{}
-delivery := mqr.NewTestDeliveryString("task payload")
-
-consumer.Consume(delivery)
-
-assert.Equal(t, mqr.Acked, delivery.State)
-```
-
-The `State` field will always be one of these values:
-
-- `mqr.Acked`: The delivery was acked
-- `mqr.Rejected`: The delivery was rejected
-- `mqr.Pushed`: The delivery was pushed (see below)
-- `mqr.Unacked`: Nothing of the above
-
-If your packages are JSON marshalled objects, then you can create test
-deliveries out of those like this:
-
-```go
-task := Task{Property: "bad value"}
-delivery := mqr.NewTestDelivery(task)
-```
 
 
 ## Publisher aka Feeder
@@ -261,6 +154,7 @@ delivery := mqr.NewTestDelivery(task)
 
 <img width="610" src="images/subscribers.png">
 
+<img width="610" src="images/subscribers1.png">
 
 [subsciber.go]: example/handler/subscriber.go
 

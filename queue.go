@@ -19,7 +19,7 @@ type Queue interface {
 	SetPushQueue(pushQueue Queue)
 	StartConsuming(prefetchLimit int64, pollDuration time.Duration) error
 	StopConsuming() <-chan struct{}
-	AddConsumer(tag string, consumer Subscriber) (string, error)
+	AddSubscriber(tag string, consumer Subscriber) (string, error)
 	AddConsumerFunc(tag string, consumerFunc ConsumerFunc) (string, error)
 
 	readyCount() (int64, error)
@@ -250,7 +250,7 @@ func (queue *redisQueue) StopConsuming() <-chan struct{} {
 }
 
 // AddConsumer adds a Subscriber to the queue and returns its internal name
-func (queue *redisQueue) AddConsumer(tag string, consumer Subscriber) (name string, err error) {
+func (queue *redisQueue) AddSubscriber(tag string, consumer Subscriber) (name string, err error) {
 	name, err = queue.addConsumer(tag)
 	if err != nil {
 		return "", err
@@ -288,7 +288,7 @@ func (queue *redisQueue) consumerConsume(consumer Subscriber) {
 // similar to http.HandlerFunc and useful if your consumers don't need any
 // state.
 func (queue *redisQueue) AddConsumerFunc(tag string, consumerFunc ConsumerFunc) (string, error) {
-	return queue.AddConsumer(tag, consumerFunc)
+	return queue.AddSubscriber(tag, consumerFunc)
 }
 
 func (queue *redisQueue) batchTimeout(batchSize int64, batch []Delivery, timeout time.Duration) (fullBatch []Delivery, ok bool) {

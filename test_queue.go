@@ -33,7 +33,7 @@ func (queue *TestQueue) PublishBytes(payload ...[]byte) error {
 func (*TestQueue) SetPushQueue(Queue)                                   { panic(errorNotSupported) }
 func (*TestQueue) StartConsuming(int64, time.Duration) error            { panic(errorNotSupported) }
 func (*TestQueue) StopConsuming() <-chan struct{}                       { panic(errorNotSupported) }
-func (*TestQueue) AddConsumer(string, Subscriber) (string, error)       { panic(errorNotSupported) }
+func (*TestQueue) AddSubscriber(string, Subscriber) (string, error)     { panic(errorNotSupported) }
 func (*TestQueue) AddConsumerFunc(string, ConsumerFunc) (string, error) { panic(errorNotSupported) }
 
 func (*TestQueue) ReturnUnacked(int64) (int64, error)  { panic(errorNotSupported) }
