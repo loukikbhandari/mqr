@@ -10,13 +10,6 @@ func (deliveries Deliveries) Payloads() []string {
 	return payloads
 }
 
-// NOTE: The returned error map maps delivery indexes to errors. So if the
-// error map is non empty you can use the indexes in the map to look up which
-// of the deliveries ran into the corresponding error. See
-// example/batch_consumer.
-
-// functions with retry, see comments in delivery.go (recommended)
-
 func (deliveries Deliveries) Ack() (errMap map[int]error) {
 	return deliveries.each(Delivery.Ack)
 }

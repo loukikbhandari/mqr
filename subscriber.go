@@ -1,6 +1,6 @@
 package mqr
 
-type Consumer interface {
+type Subscriber interface {
 	Consume(delivery Delivery)
 }
 

@@ -4,6 +4,7 @@ go 1.17
 
 require (
 	github.com/go-redis/redis/v8 v8.11.5
+	github.com/google/uuid v1.3.0
 	github.com/stretchr/testify v1.8.0
 )
 

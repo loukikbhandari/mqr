@@ -13,5 +13,5 @@ const (
 
 	phConnection = "{connection}" // connection name
 	phQueue      = "{queue}"      // queue name
-	phConsumer   = "{consumer}"   // consumer name (consisting of tag and token)
+	phConsumer   = "{Subscriber}" // Subscriber name (consisting of tag and token)
 )

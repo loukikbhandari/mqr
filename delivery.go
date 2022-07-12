@@ -51,11 +51,6 @@ func (delivery *redisDelivery) Payload() string {
 	return delivery.payload
 }
 
-// blocking versions of the functions below with the following behavior:
-// 1. return immediately if the operation succeeded or failed with ErrorNotFound
-// 2. in case of other redis errors, send them to the errors chan and retry after a sleep
-// 3. if redis errors occur after StopConsuming() has been called, ErrorConsumingStopped will be returned
-
 func (delivery *redisDelivery) Ack() error {
 	errorCount := 0
 	for {

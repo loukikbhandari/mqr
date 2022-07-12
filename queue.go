@@ -19,13 +19,8 @@ type Queue interface {
 	SetPushQueue(pushQueue Queue)
 	StartConsuming(prefetchLimit int64, pollDuration time.Duration) error
 	StopConsuming() <-chan struct{}
-	AddConsumer(tag string, consumer Consumer) (string, error)
+	AddConsumer(tag string, consumer Subscriber) (string, error)
 	AddConsumerFunc(tag string, consumerFunc ConsumerFunc) (string, error)
-	PurgeReady() (int64, error)
-	PurgeRejected() (int64, error)
-	ReturnUnacked(max int64) (int64, error)
-	ReturnRejected(max int64) (int64, error)
-	Destroy() (readyCount, rejectedCount int64, err error)
 
 	readyCount() (int64, error)
 	unackedCount() (int64, error)
@@ -112,7 +107,7 @@ func (queue *redisQueue) PublishBytes(payload ...[]byte) error {
 	return queue.Publish(stringifiedBytes...)
 }
 
-// SetPushQueue sets a push queue. In the consumer function you can call
+// SetPushQueue sets a push queue. In the Subscriber function you can call
 // delivery.Push(). If a push queue is set the delivery then gets moved from
 // the original queue to the push queue. If no push queue is set it's
 // equivalent to calling delivery.Reject().
@@ -153,7 +148,7 @@ func (queue *redisQueue) StartConsuming(prefetchLimit int64, pollDuration time.D
 }
 
 func (queue *redisQueue) consume() {
-	errorCount := 0 // number of consecutive batch errors
+	errorCount := 0 // number of consecutive  errors
 
 	for {
 		switch err := queue.consumeBatch(); err {
@@ -254,8 +249,8 @@ func (queue *redisQueue) StopConsuming() <-chan struct{} {
 	return finishedChan
 }
 
-// AddConsumer adds a consumer to the queue and returns its internal name
-func (queue *redisQueue) AddConsumer(tag string, consumer Consumer) (name string, err error) {
+// AddConsumer adds a Subscriber to the queue and returns its internal name
+func (queue *redisQueue) AddConsumer(tag string, consumer Subscriber) (name string, err error) {
 	name, err = queue.addConsumer(tag)
 	if err != nil {
 		return "", err
@@ -264,7 +259,7 @@ func (queue *redisQueue) AddConsumer(tag string, consumer Consumer) (name string
 	return name, nil
 }
 
-func (queue *redisQueue) consumerConsume(consumer Consumer) {
+func (queue *redisQueue) consumerConsume(consumer Subscriber) {
 	defer func() {
 		queue.stopWg.Done()
 	}()
@@ -289,7 +284,7 @@ func (queue *redisQueue) consumerConsume(consumer Consumer) {
 	}
 }
 
-// AddConsumerFunc adds a consumer which is defined only by a function. This is
+// AddConsumerFunc adds a Subscriber which is defined only by a function. This is
 // similar to http.HandlerFunc and useful if your consumers don't need any
 // state.
 func (queue *redisQueue) AddConsumerFunc(tag string, consumerFunc ConsumerFunc) (string, error) {
@@ -336,24 +331,14 @@ func (queue *redisQueue) addConsumer(tag string) (name string, err error) {
 
 	name = fmt.Sprintf("%s-%s", tag, RandomString(6))
 
-	// add consumer to list of consumers of this queue
+	// add Subscriber to list of consumers of this queue
 	if _, err := queue.redisClient.SAdd(queue.consumersKey, name); err != nil {
 		return "", err
 	}
 
 	queue.stopWg.Add(1)
-	// log.Printf("mqr queue added consumer %s %s", queue, name)
+	// log.Printf("mqr queue added Subscriber %s %s", queue, name)
 	return name, nil
-}
-
-// PurgeReady removes all ready deliveries from the queue and returns the number of purged deliveries
-func (queue *redisQueue) PurgeReady() (int64, error) {
-	return queue.deleteRedisList(queue.readyKey)
-}
-
-// PurgeRejected removes all rejected deliveries from the queue and returns the number of purged deliveries
-func (queue *redisQueue) PurgeRejected() (int64, error) {
-	return queue.deleteRedisList(queue.rejectedKey)
 }
 
 func (queue *redisQueue) deleteRedisList(key string) (int64, error) {
@@ -404,28 +389,6 @@ func (queue *redisQueue) move(from, to string, max int64) (n int64, error error)
 		}
 	}
 	return n, nil
-}
-
-// Destroy purges and removes the queue from the list of queues
-func (queue *redisQueue) Destroy() (readyCount, rejectedCount int64, err error) {
-	readyCount, err = queue.PurgeReady()
-	if err != nil {
-		return 0, 0, err
-	}
-	rejectedCount, err = queue.PurgeRejected()
-	if err != nil {
-		return 0, 0, err
-	}
-
-	count, err := queue.redisClient.SRem(queuesKey, queue.name)
-	if err != nil {
-		return 0, 0, err
-	}
-	if count == 0 {
-		return 0, 0, ErrorNotFound
-	}
-
-	return readyCount, rejectedCount, nil
 }
 
 // closeInStaleConnection closes the queue in the associated connection by removing all related keys
